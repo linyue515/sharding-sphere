@@ -18,23 +18,24 @@
 package io.shardingsphere.shardingjdbc.jdbc.core.datasource;
 
 import io.shardingsphere.api.ConfigMapContext;
-import io.shardingsphere.api.config.MasterSlaveRuleConfiguration;
+import io.shardingsphere.api.config.rule.MasterSlaveRuleConfiguration;
 import io.shardingsphere.core.constant.properties.ShardingProperties;
-import io.shardingsphere.core.constant.transaction.TransactionType;
 import io.shardingsphere.core.rule.MasterSlaveRule;
 import io.shardingsphere.shardingjdbc.jdbc.adapter.AbstractDataSourceAdapter;
 import io.shardingsphere.shardingjdbc.jdbc.core.connection.MasterSlaveConnection;
-import io.shardingsphere.shardingjdbc.transaction.TransactionTypeHolder;
+import io.shardingsphere.transaction.api.TransactionTypeHolder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
 
 /**
- * Database that support master-slave.
+ * Master-slave data source.
  *
  * @author zhangliang
  * @author panjuan
@@ -44,6 +45,8 @@ import java.util.Properties;
 @Slf4j
 public class MasterSlaveDataSource extends AbstractDataSourceAdapter {
     
+    private final DatabaseMetaData databaseMetaData;
+    
     private final MasterSlaveRule masterSlaveRule;
     
     private final ShardingProperties shardingProperties;
@@ -51,6 +54,7 @@ public class MasterSlaveDataSource extends AbstractDataSourceAdapter {
     public MasterSlaveDataSource(final Map<String, DataSource> dataSourceMap, final MasterSlaveRuleConfiguration masterSlaveRuleConfig,
                                  final Map<String, Object> configMap, final Properties props) throws SQLException {
         super(dataSourceMap);
+        databaseMetaData = getDatabaseMetaData(dataSourceMap);
         if (!configMap.isEmpty()) {
             ConfigMapContext.getInstance().getConfigMap().putAll(configMap);
         }
@@ -58,9 +62,9 @@ public class MasterSlaveDataSource extends AbstractDataSourceAdapter {
         shardingProperties = new ShardingProperties(null == props ? new Properties() : props);
     }
     
-    public MasterSlaveDataSource(final Map<String, DataSource> dataSourceMap, final MasterSlaveRule masterSlaveRule,
-                                 final Map<String, Object> configMap, final Properties props) throws SQLException {
+    public MasterSlaveDataSource(final Map<String, DataSource> dataSourceMap, final MasterSlaveRule masterSlaveRule, final Map<String, Object> configMap, final Properties props) throws SQLException {
         super(dataSourceMap);
+        databaseMetaData = getDatabaseMetaData(dataSourceMap);
         if (!configMap.isEmpty()) {
             ConfigMapContext.getInstance().getConfigMap().putAll(configMap);
         }
@@ -68,15 +72,14 @@ public class MasterSlaveDataSource extends AbstractDataSourceAdapter {
         shardingProperties = new ShardingProperties(null == props ? new Properties() : props);
     }
     
+    private DatabaseMetaData getDatabaseMetaData(final Map<String, DataSource> dataSourceMap) throws SQLException {
+        try (Connection connection = dataSourceMap.values().iterator().next().getConnection()) {
+            return connection.getMetaData();
+        }
+    }
+    
     @Override
     public final MasterSlaveConnection getConnection() {
-        if (TransactionType.XA == TransactionTypeHolder.get()) {
-            if (null == getXaDataSourceMap() || getXaDataSourceMap().isEmpty()) {
-                log.warn("XA transaction resource have not load, using Local transaction instead!");
-            } else {
-                return new MasterSlaveConnection(this, getXaDataSourceMap(), TransactionType.XA);
-            }
-        }
-        return new MasterSlaveConnection(this, getDataSourceMap());
+        return new MasterSlaveConnection(this, getShardingTransactionalDataSources().getDataSourceMap(), TransactionTypeHolder.get());
     }
 }

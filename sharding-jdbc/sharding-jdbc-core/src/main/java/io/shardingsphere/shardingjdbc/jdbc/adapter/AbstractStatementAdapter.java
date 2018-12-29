@@ -17,8 +17,19 @@
 
 package io.shardingsphere.shardingjdbc.jdbc.adapter;
 
+import com.google.common.base.Optional;
+import io.shardingsphere.core.constant.SQLType;
+import io.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
+import io.shardingsphere.core.metadata.table.TableMetaData;
+import io.shardingsphere.core.metadata.table.TableMetaDataFactory;
+import io.shardingsphere.core.metadata.table.executor.TableMetaDataLoader;
+import io.shardingsphere.core.parsing.antlr.sql.statement.ddl.AlterTableStatement;
+import io.shardingsphere.core.parsing.antlr.sql.statement.ddl.CreateTableStatement;
+import io.shardingsphere.core.routing.SQLRouteResult;
 import io.shardingsphere.shardingjdbc.jdbc.adapter.executor.ForceExecuteCallback;
 import io.shardingsphere.shardingjdbc.jdbc.adapter.executor.ForceExecuteTemplate;
+import io.shardingsphere.shardingjdbc.jdbc.core.connection.ShardingConnection;
+import io.shardingsphere.shardingjdbc.jdbc.metadata.JDBCTableMetaDataConnectionManager;
 import io.shardingsphere.shardingjdbc.jdbc.unsupported.AbstractUnsupportedOperationStatement;
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +43,7 @@ import java.util.Collection;
  * 
  * @author zhangliang
  * @author gaohongtao
+ * @author yangyi
  */
 @RequiredArgsConstructor
 public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperationStatement {
@@ -158,8 +170,12 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
     }
     
     @Override
-    public final boolean getMoreResults() {
-        return false;
+    public final boolean getMoreResults() throws SQLException {
+        boolean result = false;
+        for (Statement each : getRoutedStatements()) {
+            result = each.getMoreResults();
+        }
+        return result;
     }
     
     @Override
@@ -223,4 +239,33 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
     }
     
     protected abstract Collection<? extends Statement> getRoutedStatements();
+    
+    protected final void refreshTableMetaData(final ShardingConnection connection, final SQLRouteResult routeResult) throws SQLException {
+        if (null != routeResult && null != connection && SQLType.DDL == routeResult.getSqlStatement().getType() && !routeResult.getSqlStatement().getTables().isEmpty()) {
+            String logicTableName = routeResult.getSqlStatement().getTables().getSingleTableName();
+            if (routeResult.getSqlStatement() instanceof CreateTableStatement) {
+                connection.getShardingContext().getMetaData().getTable().put(logicTableName, TableMetaDataFactory.newInstance((CreateTableStatement) routeResult.getSqlStatement()));
+            } else if (routeResult.getSqlStatement() instanceof AlterTableStatement) {
+                TableMetaData newTableMetaData = TableMetaDataFactory.newInstance((AlterTableStatement) routeResult.getSqlStatement(), 
+                        connection.getShardingContext().getMetaData().getTable().get(logicTableName));
+                Optional<String> newTableName = ((AlterTableStatement) routeResult.getSqlStatement()).getNewTableName();
+                if (newTableName.isPresent()) {
+                    connection.getShardingContext().getMetaData().getTable().put(newTableName.get(), newTableMetaData);
+                    connection.getShardingContext().getMetaData().getTable().remove(logicTableName);
+                } else {
+                    connection.getShardingContext().getMetaData().getTable().put(logicTableName, newTableMetaData);
+                }
+            } else {
+                doOther(logicTableName, connection);
+            }
+        }
+    }
+    
+    private void doOther(final String logicTableName, final ShardingConnection connection) throws SQLException {
+        TableMetaDataLoader tableMetaDataLoader = new TableMetaDataLoader(connection.getShardingContext().getMetaData().getDataSource(),
+                connection.getShardingContext().getExecuteEngine(), new JDBCTableMetaDataConnectionManager(connection.getDataSourceMap()),
+                connection.getShardingContext().getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY), 
+                connection.getShardingContext().getShardingProperties().<Boolean>getValue(ShardingPropertiesConstant.CHECK_TABLE_METADATA_ENABLED));
+        connection.getShardingContext().getMetaData().getTable().put(logicTableName, tableMetaDataLoader.load(logicTableName, connection.getShardingContext().getShardingRule()));
+    }
 }

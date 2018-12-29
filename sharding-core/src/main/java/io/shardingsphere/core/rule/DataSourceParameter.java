@@ -17,7 +17,6 @@
 
 package io.shardingsphere.core.rule;
 
-import io.shardingsphere.core.constant.transaction.ProxyPoolType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,7 +29,17 @@ import lombok.Setter;
 @Setter
 public final class DataSourceParameter {
     
-    private ProxyPoolType proxyDatasourceType = ProxyPoolType.VENDOR;
+    private static final long DEFAULT_CONNECTION_TIMEOUT_MILLISECONDS = 30 * 1000;
+    
+    private static final long DEFAULT_IDLE_TIMEOUT_MILLISECONDS = 60 * 1000;
+    
+    private static final long DEFAULT_MAINTENANCE_INTERVAL_MILLISECONDS = 30 * 1000;
+    
+    private static final long DEFAULT_MAX_LIFE_TIME_MILLISECONDS = 0;
+    
+    private static final int DEFAULT_MAX_POOL_SIZE = 50;
+    
+    private static final int DEFAULT_MIN_POOL_SIZE = 1;
     
     private String url;
     
@@ -38,13 +47,15 @@ public final class DataSourceParameter {
     
     private String password;
     
-    private boolean autoCommit;
+    private long connectionTimeoutMilliseconds = DEFAULT_CONNECTION_TIMEOUT_MILLISECONDS;
     
-    private long connectionTimeout;
+    private long idleTimeoutMilliseconds = DEFAULT_IDLE_TIMEOUT_MILLISECONDS;
     
-    private long idleTimeout;
+    private long maxLifetimeMilliseconds = DEFAULT_MAX_LIFE_TIME_MILLISECONDS;
     
-    private long maxLifetime;
+    private int maxPoolSize = DEFAULT_MAX_POOL_SIZE;
     
-    private int maximumPoolSize;
+    private int minPoolSize = DEFAULT_MIN_POOL_SIZE;
+    
+    private long maintenanceIntervalMilliseconds = DEFAULT_MAINTENANCE_INTERVAL_MILLISECONDS;
 }

@@ -19,9 +19,7 @@ package io.shardingsphere.shardingproxy.backend.jdbc.execute;
 
 import io.shardingsphere.core.constant.ConnectionMode;
 import io.shardingsphere.core.constant.DatabaseType;
-import io.shardingsphere.core.constant.SQLType;
 import io.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
-import io.shardingsphere.core.constant.transaction.TransactionType;
 import io.shardingsphere.core.executor.ShardingExecuteEngine;
 import io.shardingsphere.core.executor.ShardingExecuteGroup;
 import io.shardingsphere.core.executor.StatementExecuteUnit;
@@ -99,8 +97,7 @@ public final class JDBCExecuteEngine implements SQLExecuteEngine {
         this.jdbcExecutorWrapper = jdbcExecutorWrapper;
         int maxConnectionsSizePerQuery = GlobalRegistry.getInstance().getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY);
         ShardingExecuteEngine executeEngine = BackendExecutorContext.getInstance().getExecuteEngine();
-        sqlExecutePrepareTemplate = TransactionType.XA == GlobalRegistry.getInstance().getTransactionType()
-                ? new SQLExecutePrepareTemplate(maxConnectionsSizePerQuery) : new SQLExecutePrepareTemplate(maxConnectionsSizePerQuery, executeEngine);
+        sqlExecutePrepareTemplate = new SQLExecutePrepareTemplate(maxConnectionsSizePerQuery);
         sqlExecuteTemplate = new SQLExecuteTemplate(executeEngine);
     }
     
@@ -108,12 +105,11 @@ public final class JDBCExecuteEngine implements SQLExecuteEngine {
     @Override
     public ExecuteResponse execute(final SQLRouteResult routeResult) throws SQLException {
         boolean isReturnGeneratedKeys = routeResult.getSqlStatement() instanceof InsertStatement;
-        SQLType sqlType = routeResult.getSqlStatement().getType();
         boolean isExceptionThrown = ExecutorExceptionHandler.isExceptionThrown();
         Collection<ShardingExecuteGroup<StatementExecuteUnit>> sqlExecuteGroups =
                 sqlExecutePrepareTemplate.getExecuteUnitGroups(routeResult.getRouteUnits(), new ProxyJDBCExecutePrepareCallback(isReturnGeneratedKeys));
-        SQLExecuteCallback<ExecuteResponseUnit> firstProxySQLExecuteCallback = new FirstProxyJDBCExecuteCallback(sqlType, isExceptionThrown, isReturnGeneratedKeys);
-        SQLExecuteCallback<ExecuteResponseUnit> proxySQLExecuteCallback = new ProxyJDBCExecuteCallback(sqlType, isExceptionThrown, isReturnGeneratedKeys);
+        SQLExecuteCallback<ExecuteResponseUnit> firstProxySQLExecuteCallback = new FirstProxyJDBCExecuteCallback(isExceptionThrown, isReturnGeneratedKeys);
+        SQLExecuteCallback<ExecuteResponseUnit> proxySQLExecuteCallback = new ProxyJDBCExecuteCallback(isExceptionThrown, isReturnGeneratedKeys);
         Collection<ExecuteResponseUnit> executeResponseUnits = sqlExecuteTemplate.executeGroup((Collection) sqlExecuteGroups,
                 firstProxySQLExecuteCallback, proxySQLExecuteCallback);
         ExecuteResponseUnit firstExecuteResponseUnit = executeResponseUnits.iterator().next();
@@ -199,8 +195,8 @@ public final class JDBCExecuteEngine implements SQLExecuteEngine {
         
         private boolean hasMetaData;
         
-        private FirstProxyJDBCExecuteCallback(final SQLType sqlType, final boolean isExceptionThrown, final boolean isReturnGeneratedKeys) {
-            super(DatabaseType.MySQL, sqlType, isExceptionThrown);
+        private FirstProxyJDBCExecuteCallback(final boolean isExceptionThrown, final boolean isReturnGeneratedKeys) {
+            super(DatabaseType.MySQL, isExceptionThrown);
             this.isReturnGeneratedKeys = isReturnGeneratedKeys;
         }
         
@@ -221,8 +217,8 @@ public final class JDBCExecuteEngine implements SQLExecuteEngine {
         
         private final boolean isReturnGeneratedKeys;
         
-        private ProxyJDBCExecuteCallback(final SQLType sqlType, final boolean isExceptionThrown, final boolean isReturnGeneratedKeys) {
-            super(DatabaseType.MySQL, sqlType, isExceptionThrown);
+        private ProxyJDBCExecuteCallback(final boolean isExceptionThrown, final boolean isReturnGeneratedKeys) {
+            super(DatabaseType.MySQL, isExceptionThrown);
             this.isReturnGeneratedKeys = isReturnGeneratedKeys;
         }
         

@@ -21,14 +21,12 @@ import com.google.common.base.Preconditions;
 import io.shardingsphere.core.bootstrap.ShardingBootstrap;
 import io.shardingsphere.core.constant.DatabaseType;
 import io.shardingsphere.shardingjdbc.jdbc.unsupported.AbstractUnsupportedOperationDataSource;
-import io.shardingsphere.spi.transaction.xa.DataSourceMapConverter;
-import io.shardingsphere.spi.transaction.xa.SPIDataSourceMapConverter;
+import io.shardingsphere.transaction.core.datasource.ShardingTransactionalDataSource;
 import lombok.Getter;
 import lombok.Setter;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
@@ -50,20 +48,15 @@ public abstract class AbstractDataSourceAdapter extends AbstractUnsupportedOpera
         ShardingBootstrap.init();
     }
     
-    private final Map<String, DataSource> dataSourceMap;
-    
     private final DatabaseType databaseType;
     
-    private final Map<String, DataSource> xaDataSourceMap;
-    
-    private final DataSourceMapConverter dataSourceMapConverter = new SPIDataSourceMapConverter();
+    private final ShardingTransactionalDataSource shardingTransactionalDataSources;
     
     private PrintWriter logWriter = new PrintWriter(System.out);
     
     public AbstractDataSourceAdapter(final Map<String, DataSource> dataSourceMap) throws SQLException {
-        this.dataSourceMap = dataSourceMap;
         databaseType = getDatabaseType(dataSourceMap.values());
-        xaDataSourceMap = dataSourceMapConverter.convert(dataSourceMap, databaseType);
+        shardingTransactionalDataSources = new ShardingTransactionalDataSource(databaseType, dataSourceMap);
     }
     
     protected final DatabaseType getDatabaseType(final Collection<DataSource> dataSources) throws SQLException {
@@ -86,10 +79,12 @@ public abstract class AbstractDataSourceAdapter extends AbstractUnsupportedOpera
     }
     
     /**
-     * Close original datasource.
+     * Get data source map.
+     * 
+     * @return data source map
      */
-    public void close() {
-        closeOriginalDataSources();
+    public final Map<String, DataSource> getDataSourceMap() {
+        return shardingTransactionalDataSources.getOriginalDataSourceMap();
     }
     
     @Override
@@ -102,34 +97,8 @@ public abstract class AbstractDataSourceAdapter extends AbstractUnsupportedOpera
         return getConnection();
     }
     
-    private void closeOriginalDataSources() {
-        if (null != dataSourceMap) {
-            closeDataSource(dataSourceMap);
-        }
-        if (null != xaDataSourceMap) {
-            closeDataSource(xaDataSourceMap);
-        }
-    }
-    
-    private void closeDataSource(final Map<String, DataSource> dataSourceMap) {
-        for (DataSource each : dataSourceMap.values()) {
-            try {
-                findMethod(each, "close").invoke(each);
-            } catch (final ReflectiveOperationException ignored) {
-            }
-        }
-    }
-    
-    @SuppressWarnings("unchecked")
-    private Method findMethod(final Object target, final String methodName, final Class<?>... parameterTypes) throws NoSuchMethodException {
-        Class clazz = target.getClass();
-        while (null != clazz) {
-            try {
-                return clazz.getDeclaredMethod(methodName, parameterTypes);
-            } catch (NoSuchMethodException ignored) {
-            }
-            clazz = clazz.getSuperclass();
-        }
-        throw new NoSuchMethodException(String.format("Cannot find method '%s' in %s", methodName, target.getClass().getName()));
+    @Override
+    public void close() {
+        shardingTransactionalDataSources.close();
     }
 }

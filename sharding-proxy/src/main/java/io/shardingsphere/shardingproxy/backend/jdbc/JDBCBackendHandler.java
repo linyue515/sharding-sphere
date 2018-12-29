@@ -17,15 +17,20 @@
 
 package io.shardingsphere.shardingproxy.backend.jdbc;
 
-import io.shardingsphere.api.config.ShardingRuleConfiguration;
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
+import io.shardingsphere.api.config.rule.ShardingRuleConfiguration;
 import io.shardingsphere.core.constant.DatabaseType;
 import io.shardingsphere.core.constant.SQLType;
 import io.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
-import io.shardingsphere.core.constant.transaction.TransactionType;
 import io.shardingsphere.core.merger.MergeEngineFactory;
 import io.shardingsphere.core.merger.MergedResult;
 import io.shardingsphere.core.merger.dal.show.ShowTablesMergedResult;
+import io.shardingsphere.core.metadata.table.ColumnMetaData;
+import io.shardingsphere.core.metadata.table.TableMetaData;
 import io.shardingsphere.core.metadata.table.executor.TableMetaDataLoader;
+import io.shardingsphere.core.parsing.antlr.sql.segment.definition.column.ColumnDefinitionSegment;
+import io.shardingsphere.core.parsing.antlr.sql.statement.ddl.CreateTableStatement;
 import io.shardingsphere.core.parsing.parser.constant.DerivedColumn;
 import io.shardingsphere.core.parsing.parser.sql.SQLStatement;
 import io.shardingsphere.core.routing.SQLRouteResult;
@@ -33,6 +38,8 @@ import io.shardingsphere.core.rule.ShardingRule;
 import io.shardingsphere.shardingproxy.backend.AbstractBackendHandler;
 import io.shardingsphere.shardingproxy.backend.BackendExecutorContext;
 import io.shardingsphere.shardingproxy.backend.ResultPacket;
+import io.shardingsphere.shardingproxy.backend.jdbc.connection.BackendConnection;
+import io.shardingsphere.shardingproxy.backend.jdbc.connection.ConnectionStatus;
 import io.shardingsphere.shardingproxy.backend.jdbc.execute.JDBCExecuteEngine;
 import io.shardingsphere.shardingproxy.backend.jdbc.execute.response.ExecuteQueryResponse;
 import io.shardingsphere.shardingproxy.backend.jdbc.execute.response.ExecuteResponse;
@@ -49,10 +56,9 @@ import io.shardingsphere.shardingproxy.transport.mysql.packet.command.query.Quer
 import io.shardingsphere.shardingproxy.transport.mysql.packet.generic.EofPacket;
 import io.shardingsphere.shardingproxy.transport.mysql.packet.generic.ErrPacket;
 import io.shardingsphere.shardingproxy.transport.mysql.packet.generic.OKPacket;
-import io.shardingsphere.transaction.xa.manager.XATransactionManagerSPILoader;
+import io.shardingsphere.transaction.api.TransactionType;
 import lombok.RequiredArgsConstructor;
 
-import javax.transaction.Status;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -101,17 +107,34 @@ public final class JDBCBackendHandler extends AbstractBackendHandler {
         executeResponse = executeEngine.execute(routeResult);
         if (logicSchema instanceof ShardingSchema && SQLType.DDL == sqlStatement.getType() && !sqlStatement.getTables().isEmpty()) {
             String logicTableName = sqlStatement.getTables().getSingleTableName();
-            // TODO refresh table meta data by SQL parse result
-            TableMetaDataLoader tableMetaDataLoader = new TableMetaDataLoader(logicSchema.getMetaData().getDataSource(), BackendExecutorContext.getInstance().getExecuteEngine(),
-                    new ProxyTableMetaDataConnectionManager(logicSchema.getBackendDataSource()), GLOBAL_REGISTRY.getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY));
-            logicSchema.getMetaData().getTable().put(logicTableName, tableMetaDataLoader.load(logicTableName, ((ShardingSchema) logicSchema).getShardingRule()));
+            if (routeResult.getSqlStatement() instanceof CreateTableStatement) {
+                createTable(logicTableName, logicSchema, (CreateTableStatement) routeResult.getSqlStatement());
+            }else {
+                // TODO refresh table meta data by SQL parse result
+                TableMetaDataLoader tableMetaDataLoader = new TableMetaDataLoader(logicSchema.getMetaData().getDataSource(), BackendExecutorContext.getInstance().getExecuteEngine(),
+                        new ProxyTableMetaDataConnectionManager(logicSchema.getBackendDataSource()), 
+                        GLOBAL_REGISTRY.getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY),
+                        GLOBAL_REGISTRY.getShardingProperties().<Boolean>getValue(ShardingPropertiesConstant.CHECK_TABLE_METADATA_ENABLED));
+                logicSchema.getMetaData().getTable().put(logicTableName, tableMetaDataLoader.load(logicTableName, ((ShardingSchema) logicSchema).getShardingRule()));
+            }
         }
         return merge(sqlStatement);
     }
     
+    private void createTable(final String logicTableName, final LogicSchema logicSchema, final CreateTableStatement createTableStatement) {
+        TableMetaData tableMetaData = new TableMetaData(Lists.transform(createTableStatement.getColumnDefinitions(), new Function<ColumnDefinitionSegment, ColumnMetaData>() {
+            
+            @Override
+            public ColumnMetaData apply(final ColumnDefinitionSegment input) {
+                return new ColumnMetaData(input.getColumnName(), input.getDataType(), input.isPrimaryKey());
+            }
+        }));
+        logicSchema.getMetaData().getTable().put(logicTableName, tableMetaData);
+    }
+    
     private boolean isUnsupportedXA(final SQLType sqlType) {
-        return TransactionType.XA == GlobalRegistry.getInstance().getTransactionType() && SQLType.DDL == sqlType
-                && Status.STATUS_NO_TRANSACTION != XATransactionManagerSPILoader.getInstance().getTransactionManager().getStatus();
+        BackendConnection connection = executeEngine.getBackendConnection();
+        return TransactionType.XA == connection.getTransactionType() && SQLType.DDL == sqlType && ConnectionStatus.TRANSACTION == connection.getStateHandler().getStatus();
     }
     
     private CommandResponsePackets merge(final SQLStatement sqlStatement) throws SQLException {

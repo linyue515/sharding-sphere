@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.shardingsphere</groupId>
     <artifactId>sharding-sphere</artifactId>
-    <version>3.0.1-SNAPSHOT</version>
+    <version>3.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>${project.artifactId}</name>
     
@@ -50,24 +50,21 @@
         <opentracing.version>0.30.0</opentracing.version>
         
         <lombok.version>1.16.4</lombok.version>
-        
-        <springframework.version>[4.3.6.RELEASE,5.0.0.M1)</springframework.version>
-        <spring-boot.version>[1.5.0.RELEASE,2.0.0.M1)</spring-boot.version>
 
         <junit.version>4.12</junit.version>
         <hamcrest.version>1.3</hamcrest.version>
         <mockito.version>2.7.21</mockito.version>
         <logback.version>1.2.0</logback.version>
         
+        <hikari-cp.version>2.4.11</hikari-cp.version>
+        <alibaba.druid.version>1.1.11</alibaba.druid.version>
+        <commons-dbcp2.version>2.2.0</commons-dbcp2.version>
+        <commons-pool.version>1.6</commons-pool.version>
         <h2.version>1.4.196</h2.version>
         <mysql-connector-java.version>5.1.42</mysql-connector-java.version>
         <postgresql.version>9.4.1212</postgresql.version>
         <mssql.version>6.1.7.jre7-preview</mssql.version>
-        <hikari-cp.version>2.4.11</hikari-cp.version>
-        <commons-dbcp2.version>2.2.0</commons-dbcp2.version>
-        <tomcat.commons-dbcp2.version>9.0.11</tomcat.commons-dbcp2.version>
-        <commons-pool.version>1.6</commons-pool.version>
-        
+    
         <maven-compiler-plugin.version>3.3</maven-compiler-plugin.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
         <maven-resources-plugin.version>2.7</maven-resources-plugin.version>
@@ -93,7 +90,6 @@
         <protobuf-maven-plugin.version>0.5.0</protobuf-maven-plugin.version>
         <os-maven-plugin.version>1.5.0.Final</os-maven-plugin.version>
         <docker-maven-plugin.version>0.4.14</docker-maven-plugin.version>
-        <servicecomb.saga.version>0.3.0-SNAPSHOT</servicecomb.saga.version>
     
         <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
     </properties>
@@ -165,12 +161,7 @@
                 <artifactId>transactions-jdbc</artifactId>
                 <version>${atomikos.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat</groupId>
-                <artifactId>tomcat-dbcp</artifactId>
-                <version>${tomcat.commons-dbcp2.version}</version>
-            </dependency>
-            
+
             <dependency>
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-framework</artifactId>
@@ -225,24 +216,6 @@
                 <version>${lombok.version}</version>
                 <scope>provided</scope>
             </dependency>
-            <dependency>
-                <groupId>org.springframework</groupId>
-                <artifactId>spring-context-support</artifactId>
-                <version>${springframework.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter</artifactId>
-                <version>${spring-boot.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-configuration-processor</artifactId>
-                <version>${spring-boot.version}</version>
-                <optional>true</optional>
-            </dependency>
             
             <dependency>
                 <groupId>junit</groupId>
@@ -294,6 +267,12 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid</artifactId>
+                <version>${alibaba.druid.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>commons-pool</groupId>
                 <artifactId>commons-pool</artifactId>
                 <version>${commons-pool.version}</version>
@@ -336,21 +315,9 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>org.springframework</groupId>
-                <artifactId>spring-test</artifactId>
-                <version>${springframework.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-test</artifactId>
                 <version>${curator.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-test</artifactId>
-                <version>${spring-boot.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -358,17 +325,6 @@
                 <artifactId>opentracing-mock</artifactId>
                 <version>${opentracing.version}</version>
                 <scope>test</scope>
-            </dependency>
-            
-            <dependency>
-                <groupId>org.apache.servicecomb.saga</groupId>
-                <artifactId>saga-core</artifactId>
-                <version>${servicecomb.saga.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.servicecomb.saga</groupId>
-                <artifactId>saga-format</artifactId>
-                <version>${servicecomb.saga.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

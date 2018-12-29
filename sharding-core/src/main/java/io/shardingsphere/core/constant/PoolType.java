@@ -17,6 +17,7 @@
 
 package io.shardingsphere.core.constant;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,12 +26,14 @@ import lombok.RequiredArgsConstructor;
  * @author zhaojun
  */
 @RequiredArgsConstructor
+@Getter
 public enum PoolType {
     
     HIKARI("com.zaxxer.hikari.HikariDataSource"),
     DRUID("com.alibaba.druid.pool.DruidDataSource"),
     DBCP2("org.apache.commons.dbcp2.BasicDataSource"),
-    DBCP2_TOMCAT("org.apache.tomcat.dbcp.dbcp2.BasicDataSource");
+    DBCP2_TOMCAT("org.apache.tomcat.dbcp.dbcp2.BasicDataSource"),
+    UNKNOWN("");
     
     private final String className;
     
@@ -46,7 +49,7 @@ public enum PoolType {
                 return each;
             }
         }
-        throw new UnsupportedOperationException(String.format("Cannot find pool type of [%s]", className));
+        return UNKNOWN;
     }
 }
 

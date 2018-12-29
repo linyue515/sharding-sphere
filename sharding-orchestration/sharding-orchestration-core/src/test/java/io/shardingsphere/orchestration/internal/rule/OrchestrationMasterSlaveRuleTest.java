@@ -17,53 +17,45 @@
 
 package io.shardingsphere.orchestration.internal.rule;
 
+import com.google.common.collect.Sets;
 import io.shardingsphere.api.algorithm.masterslave.RandomMasterSlaveLoadBalanceAlgorithm;
-import io.shardingsphere.api.config.MasterSlaveRuleConfiguration;
-import io.shardingsphere.core.constant.ShardingConstant;
-import io.shardingsphere.orchestration.internal.state.event.DisabledStateEventBusEvent;
-import org.junit.Before;
+import io.shardingsphere.api.config.rule.MasterSlaveRuleConfiguration;
+import io.shardingsphere.orchestration.util.FieldUtil;
+import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
-public class OrchestrationMasterSlaveRuleTest {
+public final class OrchestrationMasterSlaveRuleTest {
     
-    private OrchestrationMasterSlaveRule orchestrationMasterSlaveRule;
+    private final OrchestrationMasterSlaveRule orchestrationMasterSlaveRule = new OrchestrationMasterSlaveRule(
+            new MasterSlaveRuleConfiguration("test_ms", "master_db", Arrays.asList("slave_db_0", "slave_db_1"), new RandomMasterSlaveLoadBalanceAlgorithm()));
     
-    @Before
-    public void setUp() {
-        orchestrationMasterSlaveRule = new OrchestrationMasterSlaveRule(getMasterSlaveRuleConfiguration());
-    }
-    
-    private MasterSlaveRuleConfiguration getMasterSlaveRuleConfiguration() {
-        MasterSlaveRuleConfiguration result = new MasterSlaveRuleConfiguration();
-        result.setName("test_ms");
-        result.setLoadBalanceAlgorithm(new RandomMasterSlaveLoadBalanceAlgorithm());
-        result.setMasterDataSourceName("master_db");
-        result.setSlaveDataSourceNames(Arrays.asList("slave_db_0", "slave_db_1"));
-        return result;
+    @Test
+    public void assertGetSlaveDataSourceNamesWithoutDisabledDataSourceNames() {
+        assertThat(orchestrationMasterSlaveRule.getSlaveDataSourceNames(), CoreMatchers.<Collection<String>>is(Arrays.asList("slave_db_0", "slave_db_1")));
     }
     
     @Test
-    public void assertGetSlaveDataSourceNames() {
-        Collection<String> expected = Arrays.asList("slave_db_0", "slave_db_1");
-        assertThat(orchestrationMasterSlaveRule.getSlaveDataSourceNames(), is(expected));
+    public void assertGetSlaveDataSourceNamesWithDisabledDataSourceNames() {
+        orchestrationMasterSlaveRule.updateDisabledDataSourceNames("slave_db_0", true);
+        assertThat(orchestrationMasterSlaveRule.getSlaveDataSourceNames(), CoreMatchers.<Collection<String>>is(Collections.singletonList("slave_db_1")));
     }
     
     @Test
-    public void assertRenew() {
-        Collection<String> expected = Collections.singletonList("slave_db_1");
-        orchestrationMasterSlaveRule.renew(getDisabledStateEventBusEvent());
-        assertThat(orchestrationMasterSlaveRule.getSlaveDataSourceNames(), is(expected));
+    public void assertUpdateDisabledDataSourceNamesForDisabled() {
+        orchestrationMasterSlaveRule.updateDisabledDataSourceNames("slave_db_0", true);
+        assertThat((Collection) FieldUtil.getFieldValue(orchestrationMasterSlaveRule, "disabledDataSourceNames"), CoreMatchers.<Collection>is(Sets.newHashSet("slave_db_0")));
     }
     
-    private DisabledStateEventBusEvent getDisabledStateEventBusEvent() {
-        Collection<String> slaveNames = Collections.singletonList("slave_db_0");
-        return new DisabledStateEventBusEvent(Collections.singletonMap(ShardingConstant.LOGIC_SCHEMA_NAME, slaveNames));
+    @Test
+    public void assertUpdateDisabledDataSourceNamesForEnabled() {
+        orchestrationMasterSlaveRule.updateDisabledDataSourceNames("slave_db_0", true);
+        orchestrationMasterSlaveRule.updateDisabledDataSourceNames("slave_db_0", false);
+        assertThat((Collection) FieldUtil.getFieldValue(orchestrationMasterSlaveRule, "disabledDataSourceNames"), CoreMatchers.<Collection>is(Collections.emptySet()));
     }
 }

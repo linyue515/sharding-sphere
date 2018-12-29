@@ -23,6 +23,8 @@ import io.shardingsphere.core.exception.ShardingException;
 import io.shardingsphere.core.metadata.datasource.dialect.MySQLDataSourceMetaData;
 import io.shardingsphere.core.metadata.datasource.dialect.PostgreSQLDataSourceMetaData;
 import io.shardingsphere.core.rule.DataSourceParameter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.sql.DataSource;
 
@@ -32,7 +34,19 @@ import javax.sql.DataSource;
  * @author zhaojun
  * @author zhangliang
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class JDBCRawBackendDataSourceFactory implements JDBCBackendDataSourceFactory {
+    
+    private static final JDBCRawBackendDataSourceFactory INSTANCE = new JDBCRawBackendDataSourceFactory();
+    
+    /**
+     * Get instance of {@code JDBCBackendDataSourceFactory}.
+     *
+     * @return JDBC backend data source factory
+     */
+    public static JDBCBackendDataSourceFactory getInstance() {
+        return INSTANCE;
+    }
     
     @Override
     public DataSource build(final String dataSourceName, final DataSourceParameter dataSourceParameter) {
@@ -43,11 +57,11 @@ public final class JDBCRawBackendDataSourceFactory implements JDBCBackendDataSou
         config.setJdbcUrl(dataSourceParameter.getUrl());
         config.setUsername(dataSourceParameter.getUsername());
         config.setPassword(dataSourceParameter.getPassword());
-        config.setAutoCommit(dataSourceParameter.isAutoCommit());
-        config.setConnectionTimeout(dataSourceParameter.getConnectionTimeout());
-        config.setIdleTimeout(dataSourceParameter.getIdleTimeout());
-        config.setMaxLifetime(dataSourceParameter.getMaxLifetime());
-        config.setMaximumPoolSize(dataSourceParameter.getMaximumPoolSize());
+        config.setConnectionTimeout(dataSourceParameter.getConnectionTimeoutMilliseconds());
+        config.setIdleTimeout(dataSourceParameter.getIdleTimeoutMilliseconds());
+        config.setMaxLifetime(dataSourceParameter.getMaxLifetimeMilliseconds());
+        config.setMaximumPoolSize(dataSourceParameter.getMaxPoolSize());
+        config.setMinimumIdle(dataSourceParameter.getMinPoolSize());
         config.addDataSourceProperty("useServerPrepStmts", Boolean.TRUE.toString());
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", 250);
